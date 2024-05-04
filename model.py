@@ -94,10 +94,10 @@ class UNetModel(object):
         
         numerator = tf.reduce_sum(true * pred, axis=[1, 2, 3]) + smooth
         denominator = tf.reduce_sum(true, axis=[1, 2, 3]) + tf.reduce_sum(pred, axis=[1, 2, 3]) + smooth
-        clot_mask_sum = tf.reduce_mean(tf.reduce_sum(true, axis=[1, 2, 3]))
+        vessel_mask_sum = tf.reduce_mean(tf.reduce_sum(true, axis=[1, 2, 3]))
         loss = -(numerator / denominator)
 
-        return loss, numerator, denominator, clot_mask_sum
+        return loss, numerator, denominator, vessel_mask_sum
 
     def bce_loss(self, true, pred):
         true = tf.cast(true, tf.float32)
@@ -118,14 +118,13 @@ class UNetModel(object):
         self.internal_shape = np.array([128, 256, 64])
         self.internal_pixdim = np.array([2.0, 1.0, 2.0])'''
 
-        self.maps_count = 1  # image, clot_location_map, tmax, cbf, cbv
+        self.maps_count = 1  
         self.max_image_val = 1.0 
-        self.max_tmax_val = 1.0
 
         with tf.variable_scope('Input'):
 
             self.image = tf.placeholder(tf.float32, shape=(None, None, None), name='image')
-            self.clot_mask = tf.placeholder(tf.float32, shape=(None, None, None), name='clot_mask')
+            self.vessel_mask = tf.placeholder(tf.float32, shape=(None, None, None), name='vessel_mask')
 
             self.trans_mat = tf.placeholder(tf.float32, shape=(None, 3, 4), name='trans_mat')  # [batch, 3, 4]
             self.training = tf.placeholder(tf.bool, name='training')
@@ -136,9 +135,9 @@ class UNetModel(object):
             self.image_trans = tf.expand_dims(self.image, -1)
             self.image_trans = self.image_trans - tf.math.reduce_min(self.image_trans)/(tf.math.reduce_max(self.image_trans)- tf.math.reduce_min(self.image_trans))
             
-            self.clot_mask_trans = tf.expand_dims(self.clot_mask, -1)
-            self.clot_mask_trans = tf.cast(self.clot_mask_trans > 0, tf.float32)
-            #self.clot_mask_trans = self.clot_mask_trans - tf.math.reduce_min(self.clot_mask_trans)/(tf.math.reduce_max(self.clot_mask_trans)- tf.math.reduce_min(self.clot_mask_trans))
+            self.vessel_mask_trans = tf.expand_dims(self.vessel_mask, -1)
+            self.vessel_mask_trans = tf.cast(self.vessel_mask_trans > 0, tf.float32)
+            #self.vessel_mask_trans = self.vessel_mask_trans - tf.math.reduce_min(self.vessel_mask_trans)/(tf.math.reduce_max(self.vessel_mask_trans)- tf.math.reduce_min(self.vessel_mask_trans))
 
             print('max image val:{}'.format(self.max_image_val))
 
@@ -152,21 +151,20 @@ class UNetModel(object):
             self.softmax = tf.nn.softmax(self.logits[:, :, :, 0], name='softmax_cls')  # [batch, 512, 512, 2]
             self.pred = tf.argmax(self.softmax, axis=-1)  # [batch, 512, 512]
 
-            self.pred_clot = tf.expand_dims(tf.identity(tf.cast(self.sigmoid > self.seg_thresh, tf.float32), name='pred_clot'), -1)  # [batch, 96, 256, 256]
+            self.pred_vessels = tf.expand_dims(tf.identity(tf.cast(self.sigmoid > self.seg_thresh, tf.float32), name='pred_vessels'), -1)  # [batch, 96, 256, 256]
 
-            logging.debug(f"SHAPES:logits shape:{self.logits.shape}, sigmoid shape:{self.sigmoid.shape}, softmax shape:{self.softmax.shape}, pred shape:{self.pred_clot.shape}")
+            logging.debug(f"SHAPES:logits shape:{self.logits.shape}, sigmoid shape:{self.sigmoid.shape}, softmax shape:{self.softmax.shape}, pred shape:{self.pred_vessels.shape}")
 
             '''if self.training:
-                logging.debug(f"Shapes: logits:{self.logits.shape}, sigmoid:{self.sigmoid.shape}, pred_clot:{self.pred_clot.shape}")'''
+                logging.debug(f"Shapes: logits:{self.logits.shape}, sigmoid:{self.sigmoid.shape}, pred_vessels:{self.pred_vessels.shape}")'''
 
             
 
         with tf.variable_scope('loss'):
 
-            # CTP maps MSE loss
             
             if self.losstype == 'mse':
-                self.loss0 = (self.clot_mask_trans - self.logits) ** 2  # [batch, 80, 192, 160, 1]
+                self.loss0 = (self.vessel_mask_trans - self.logits) ** 2  # [batch, 80, 192, 160, 1]
                 #self.loss0 = tf.reduce_sum(self.loss0, [1, 2, 3, 4]) / 2  # [batch]
                 #print('sse loss:{}, N={}, avg={}'.format(tf.reduce_sum(self.loss0),tf.shape(self.loss0),tf.reduce_mean(self.loss0)))
                 
@@ -176,8 +174,8 @@ class UNetModel(object):
             else:
                 
                 # Use dice loss instead
-                self.loss0  = self.bce_loss(self.clot_mask_trans, self.logits)
-                #self.loss0, self.numerator0, self.denominator0, self.clot_mask_sum0  = self.dice_loss(self.clot_mask_trans, self.logits)
+                self.loss0  = self.bce_loss(self.vessel_mask_trans, self.logits)
+                #self.loss0, self.numerator0, self.denominator0, self.vessel_mask_sum0  = self.dice_loss(self.vessel_mask_trans, self.logits)
                 self.loss0 = tf.reduce_mean(self.loss0)
 
                 
@@ -194,7 +192,7 @@ class UNetModel(object):
             # This updates the estimated population statistics during training, which is later used during testing
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             with tf.control_dependencies(update_ops):
-                self.optimizer = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(self.loss)
+                self.optimizer = tf.train.AdamOptimizer(learning_rate=1e-3).minimize(self.loss)
 
         with tf.variable_scope('Output'):
             self.pred_vessel = tf.sigmoid(self.logits)

@@ -52,12 +52,12 @@ class Experiment(object):
                 start_index = np.minimum(batch_index * batch_size, len(self.data.train_set) - batch_size)
 
                 image = np.zeros(shape=[batch_size, internal_shape[0], internal_shape[1]])
-                clot_mask = np.zeros(shape=[batch_size, internal_shape[0], internal_shape[1]])
+                vessel_mask = np.zeros(shape=[batch_size, internal_shape[0], internal_shape[1]])
                 trans_mat = np.zeros(shape=[batch_size, 3, 4])
 
                 for i in range(batch_size):
                     image[i] = self.data.train_set[start_index + i][0]
-                    clot_mask[i] = self.data.train_set[start_index + i][1]
+                    vessel_mask[i] = self.data.train_set[start_index + i][1]
 
                     # Augmentation
                     flip_z = np.random.random() > 0.5
@@ -84,20 +84,19 @@ class Experiment(object):
 
                 #if self.model.internal_shape != image.shape[1:]:
                 #logging.info(f"Inputs shapes, expected:{self.model.internal_shape}, found:{image.shape[1:]}")
-                _, clot_sum, summary_loss, summary_loss0 = self.model.sess.run(
+                _, loss, summary_loss, summary_loss0 = self.model.sess.run(
                     [self.model.optimizer, 
                         self.model.loss,
                         self.model.loss_summary_node,
                         self.model.loss0_summary_node],
                     feed_dict={
                         self.model.image: image,
-                        self.model.clot_mask: clot_mask,
+                        self.model.vessel_mask: vessel_mask,
                         self.model.trans_mat: trans_mat,
                         self.model.training: 1})
 
                 print('Epoch: ' + str(epoch_index) + '/' + str(epochs) + ', Batch: ' + str(batch_index) + '/' + str(train_batches) + ', Train Loss: ' + str(loss))
-                logging.debug(f"Image DR:({np.min(image)}-{np.max(image)}),Label DR:({np.min(clot_mask)}-{np.max(clot_mask)})")
-                logging.debug(f"Numerator:{num}, Denominator:{den}")
+                logging.debug(f"Image DR:({np.min(image)}-{np.max(image)}),Label DR:({np.min(vessel_mask)}-{np.max(vessel_mask)})")
 
                 training_loss += loss
                 # Tensorboard
@@ -115,8 +114,8 @@ class Experiment(object):
                 val_outputs = val_outputs[:5]
 
                 for i, output in enumerate(val_outputs):
-                    image_trans, clot_mask_trans, pred_clot, _ = output
-                    images = [image_trans, clot_mask_trans, pred_clot]
+                    image_trans, vessel_mask_trans, pred_vessels, _ = output
+                    images = [image_trans, vessel_mask_trans, pred_vessels]
 
                     logging.debug(f"Images:{len(images)}, image shape:{images[0].shape}")
                     image_name = ['orig', 'true_vessels', "pred_vessels"]
@@ -162,12 +161,12 @@ class Experiment(object):
                     start_index = np.minimum(batch_index * batch_size, len(self.data.val_set) - batch_size)
 
                     image = np.zeros(shape=[batch_size, internal_shape[0], internal_shape[1]])
-                    clot_mask = np.zeros(shape=[batch_size, internal_shape[0], internal_shape[1]])
+                    vessel_mask = np.zeros(shape=[batch_size, internal_shape[0], internal_shape[1]])
                     trans_mat = np.zeros(shape=[batch_size, 3, 4])
 
                     for i in range(batch_size):
                         image[i] = self.data.val_set[start_index + i][0]
-                        clot_mask[i] = self.data.val_set[start_index + i][1]
+                        vessel_mask[i] = self.data.val_set[start_index + i][1]
                         
                         trans_mat[i] = np.zeros((3, 4))
 
@@ -178,7 +177,7 @@ class Experiment(object):
                             self.model.loss0_summary_node],
                         feed_dict={
                             self.model.image: image,
-                            self.model.clot_mask: clot_mask,
+                            self.model.vessel_mask: vessel_mask,
                             self.model.trans_mat: trans_mat,
                             self.model.training: 0})
 
@@ -219,27 +218,27 @@ class Experiment(object):
 
                 # Validating the validation set
                 image = np.expand_dims(dataset[i][0], 0)
-                clot_mask = np.expand_dims(dataset[i][1], 0)
+                vessel_mask = np.expand_dims(dataset[i][1], 0)
                 row = ''
                 #pred_vessel_internal = dataset[i][3]
 
 
                 trans_mat = np.expand_dims(np.zeros(shape=(3, 4)), 0)
 
-                image_trans, clot_mask_trans, pred_clot, loss0 = self.model.sess.run(
+                image_trans, vessel_mask_trans, pred_vessels, loss0 = self.model.sess.run(
                     [self.model.image_trans,
-                     self.model.clot_mask_trans,
-                     self.model.pred_clot,
+                     self.model.vessel_mask_trans,
+                     self.model.pred_vessels,
                      self.model.loss0],
                     feed_dict={
                         self.model.image: image,
-                        self.model.clot_mask: clot_mask,
+                        self.model.vessel_mask: vessel_mask,
                         self.model.trans_mat: trans_mat,
                         self.model.training: 0})
 
                 model_outputs.append([image_trans,
-                                      clot_mask_trans,
-                                      pred_clot,
+                                      vessel_mask_trans,
+                                      pred_vessels,
                                       row])
                 loss0_arr.append(loss0)
         
