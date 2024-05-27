@@ -12,7 +12,25 @@ def zscore_norm(image):
 
     return norm_image
 
-class dataloader(object):
+def vessel_mask(img_np, filter_name = "sato"):
+
+    sig = [2]
+    
+    if filter_name == "sato":
+        img_ret = (img_np > 2) + (img_np <=-1)
+        ridge = sato(img_np, sigmas=sig)
+        mask = (1 - img_ret) * (ridge>0.05)
+
+    else:
+        #ridge = frangi(img_np, sigmas=[12, 14, 16, 18])
+        sig = [2, 4, 6]
+        ridge = frangi(img_np, sigmas=sig)
+        img_ret = (img_np > 150) + (img_np <=0)
+        mask = (1 - img_ret) * (ridge>0.03)
+
+    return mask
+
+class optical_dataloader(object):
     def __init__(self, train_paths_list, val_paths_list, test_paths_list=[]):
 
         # Initializing the datasets
@@ -26,7 +44,7 @@ class dataloader(object):
         
         internal_shape = [512, 512]
         datasets = [train_paths_list, val_paths_list, test_paths_list]
-        recalc = True
+        recalc = False
         # Loading the appropriate data to memory
         # counter = 0
         for i in range(len(datasets)):
@@ -41,7 +59,7 @@ class dataloader(object):
                     #vessel_mask_np = np.array(Image.open(mask_path).convert('L')).astype(np.uint8)
                     vessel_mask_np = np.array(Image.open(mask_path).convert('1'))
                 else:
-                    vessel_mask_np = self.vessel_mask(image_np, filter_name="sato")
+                    vessel_mask_np = vessel_mask(image_np, filter_name="sato")
                     vessel_mask = Image.fromarray((vessel_mask_np * 255).astype(np.uint8))
                     logging.debug(f"Writing vessel mask to {mask_path}")
                     vessel_mask.save(mask_path)
@@ -67,21 +85,5 @@ class dataloader(object):
         print('Done Loading')
         print('**************************************')
 
-    def vessel_mask(self, img_np, filter_name = "sato"):
 
-        sig = [2]
-        
-        if filter_name == "sato":
-            img_ret = (img_np > 2) + (img_np <=-1)
-            ridge = sato(img_np, sigmas=sig)
-            mask = (1 - img_ret) * (ridge>0.05)
-
-        else:
-            #ridge = frangi(img_np, sigmas=[12, 14, 16, 18])
-            sig = [2, 4, 6]
-            ridge = frangi(img_np, sigmas=sig)
-            img_ret = (img_np > 150) + (img_np <=0)
-            mask = (1 - img_ret) * (ridge>0.03)
-
-        return mask
 
