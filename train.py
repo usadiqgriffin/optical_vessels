@@ -1,7 +1,7 @@
 from os.path import join
 
 from experiment import Experiment
-from model import UNetModel
+from model import UNet2D
 from dataloader import dataloader
 from glob import glob
 import random
@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     train_paths_list, val_paths_list = dev_paths_list[:int(0.7*len(dev_paths_list))], dev_paths_list[int(0.7*len(dev_paths_list))+1:]
     
-    model = UNetModel("output", False, False)
+    model = UNet2D()
     model.define_model()
     model.initialize_weights(global_step=0)
     data = dataloader(train_paths_list, val_paths_list, test_paths_list)
