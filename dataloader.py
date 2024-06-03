@@ -4,6 +4,7 @@ from skimage.filters.ridges import sato, frangi
 from tqdm import tqdm
 import os
 import logging
+import torch
 
 def zscore_norm(image):
     mean_val = np.mean(image)
@@ -12,7 +13,7 @@ def zscore_norm(image):
 
     return norm_image
 
-def vessel_mask(img_np, filter_name = "sato"):
+def vessel_mask_ridge(img_np, filter_name = "sato"):
 
     sig = [2]
     
@@ -30,7 +31,7 @@ def vessel_mask(img_np, filter_name = "sato"):
 
     return mask
 
-class optical_dataloader(object):
+class OpticalDataloader(torch.utils.data.Dataset):
     def __init__(self, train_paths_list, val_paths_list, test_paths_list=[]):
 
         # Initializing the datasets
@@ -59,15 +60,14 @@ class optical_dataloader(object):
                     #vessel_mask_np = np.array(Image.open(mask_path).convert('L')).astype(np.uint8)
                     vessel_mask_np = np.array(Image.open(mask_path).convert('1'))
                 else:
-                    vessel_mask_np = vessel_mask(image_np, filter_name="sato")
+                    vessel_mask_np = vessel_mask_ridge(image_np, filter_name="sato")
                     vessel_mask = Image.fromarray((vessel_mask_np * 255).astype(np.uint8))
                     logging.debug(f"Writing vessel mask to {mask_path}")
                     vessel_mask.save(mask_path)
 
                 #assert image_np.shape == internal_shape
                 #assert vessel_mask_np.shape == internal_shape
-                example = [image_np,
-                            vessel_mask_np]
+                example = [image_np, vessel_mask_np]
 
                 if i == 0:
                     self.train_set.append(example)
@@ -84,6 +84,18 @@ class optical_dataloader(object):
         print('len(self.test_set) =', len(self.test_set))
         print('Done Loading')
         print('**************************************')
+    
+    def __getitem__(self, index):
+
+        x, t = self.train_set[index]
+
+        item = {}
+        item["x"]= torch.unsqueeze(torch.Tensor(x), 0)
+        item["t"]= torch.Tensor(t)
+        return item
+        
+    def __len__(self):
+        return len(self.train_set)
 
 
 

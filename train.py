@@ -1,34 +1,48 @@
 from os.path import join
+import argparse
 
 from experiment import Experiment
 from model import UNet2D
-from dataloader import dataloader
+from dataloader import OpticalDataloader
 from glob import glob
 import random
 from random import shuffle
 import logging
 import os
+from GLOBALS import *
 
 
 if __name__ == "__main__":
     # Initializing data
 
+    # Arguments and logger
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dryrun", action="store_true", default=False)
+    logging.basicConfig(level=logging.CRITICAL)
     
+    # Data params
+    internal_shape = [1, 512, 512] # C, W, H
     data_dir = "data/diabetic-retinopathy-dataset/resized"
-    dev_paths_list = glob(data_dir + "/train/*t.jpeg")[:500] # left or right, exclude masks
-    test_paths_list = glob(data_dir + "/test/*t.jpeg")[:200]
-    random.Random(4).shuffle(dev_paths_list)
 
-    logging.basicConfig(level=logging.INFO)
+    args = parser.parse_args()
+    n_dev = 20 if args.dryrun else 500
+    n_test = 10 if args.dryrun else 200
+    n_train = int(n_dev * 0.7)
+    dev_paths_list = glob(data_dir + "/train/*t.jpeg")[:n_dev]
+    test_paths_list = glob(data_dir + "/test/*t.jpeg")[:n_test]
+    random.Random(4).shuffle(dev_paths_list)
+    random.Random(4).shuffle(test_paths_list)
+
     logging.info(f"{len(dev_paths_list)} Training images found")
 
-    train_paths_list, val_paths_list = dev_paths_list[:int(0.7*len(dev_paths_list))], dev_paths_list[int(0.7*len(dev_paths_list))+1:]
-    
-    model = UNet2D()
-    model.define_model()
-    model.initialize_weights(global_step=0)
-    data = dataloader(train_paths_list, val_paths_list, test_paths_list)
+    train_paths_list, val_paths_list = dev_paths_list[:n_train], dev_paths_list[n_train:]
+    data = OpticalDataloader(train_paths_list, val_paths_list, test_paths_list)
     
     # Initializing experiment
+
+    model = UNet2D(internal_shape, output_classes=2, depth=8, width=2)
+    #model.define_model()
+    #model.initialize_weights(global_step=0)
+
     experiment = Experiment(model, data, "output")
     experiment.train()
