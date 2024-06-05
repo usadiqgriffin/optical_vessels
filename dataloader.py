@@ -142,6 +142,9 @@ class OpticalDataloader(torch.utils.data.Dataset):
             v2.RandomHorizontalFlip(p=0.5),
             v2.RandomVerticalFlip(p=0.5),
             v2.RandomRotation(degrees=30),
+            v2.RandomErasing(p=0.2, ratio=(0.5, 0.5)),
+            v2.RandomResizedCrop(size=(512, 512), ratio=(0.75, 1.333)),
+            #v2.RandomAffine(degrees=0, translate=[0.1, 0.1], shear=0)
             ]
         )
         
