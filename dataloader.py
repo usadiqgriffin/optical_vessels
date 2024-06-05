@@ -93,7 +93,9 @@ class OpticalDataloader(torch.utils.data.Dataset):
         print('Done Loading')
         print('**************************************')
     
-    def augment(image):
+    def augment(image, mask):
+
+        mask = torch.unsqueeze(mask, 0)
         # Define the transformation
         transform = T.Compose([
             T.Resize((224, 224)),
@@ -110,16 +112,26 @@ class OpticalDataloader(torch.utils.data.Dataset):
             T.RandomErasing(p=0.2, scale=(0.05, 0.05), ratio=(0.5, 0.5)),
         ])
         
+        
         augmented_image = transform(image).permute(1, 2, 0)
-        return augmented_image
+        augmented_mask = transform(mask).permute(1, 2, 0)
+
+        return augmented_image, torch.squeeze(augmented_mask)
 
     def __getitem__(self, index):
 
         x, t = self.data[self.mode][index]
 
         item = {}
-        item["x"]= torch.unsqueeze(torch.Tensor(x), 0)
-        item["t"]= torch.Tensor(t)
+        x = torch.unsqueeze(torch.Tensor(x), 0)
+        t = torch.Tensor(t)
+
+        if self.mode == "train":
+            x, t = self.augment(x, t)
+        
+        item['x'] = x
+        item['t'] = t
+        
         return item
         
     def __len__(self):
