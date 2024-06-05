@@ -97,7 +97,7 @@ class Experiment(object):
         test_dl = torch.utils.data.DataLoader(
             dataset=self.data,
             batch_size=1,
-            shuffle=False,
+            shuffle=True,
             num_workers=0,
             drop_last=False
         )

@@ -93,8 +93,27 @@ class OpticalDataloader(torch.utils.data.Dataset):
         print('Done Loading')
         print('**************************************')
     
-    def __getitem__(self, index):
+    def augment(image):
+        # Define the transformation
+        transform = T.Compose([
+            T.Resize((224, 224)),
+            T.RandomAffine(degrees=10, translate=(0.01, 0.01), scale=(0.99, 1.01)),
+            T.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2, hue=0.01),
+            T.RandomHorizontalFlip(p=0.5),
+            T.RandomRotation(degrees=15),
+            T.RandomVerticalFlip(p=0.5),
+            T.GaussianBlur(kernel_size=3),  # You can adjust kernel size as needed
+            T.RandomResizedCrop(size=(224, 224), scale=(0.99, 1.0), ratio=(0.75, 1.333)),
+            T.RandomAdjustSharpness(sharpness_factor=2),
+            T.RandomAutocontrast(),
+            T.ToTensor(),
+            T.RandomErasing(p=0.2, scale=(0.05, 0.05), ratio=(0.5, 0.5)),
+        ])
+        
+        augmented_image = transform(image).permute(1, 2, 0)
+        return augmented_image
 
+    def __getitem__(self, index):
 
         x, t = self.data[self.mode][index]
 
