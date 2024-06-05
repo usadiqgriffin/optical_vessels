@@ -11,6 +11,13 @@ EXPERIMENT_OUTPUT_DIR = os.path.join(
     GIT_BRANCH_NAME
 )
 
+EXPERIMENT_DEPLOY_DIR = os.path.join(
+    f"/teamspace/studios/this_studio/dl_python/cv/optical_vessels/{linux_user}",
+    "optical_vessels",
+    GIT_BRANCH_NAME,
+    "deploy"
+)
+
 CHECKPOINT_DIR = os.path.join(
     EXPERIMENT_OUTPUT_DIR,
     "checkpoint"

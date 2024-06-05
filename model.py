@@ -11,6 +11,7 @@ from monai.losses.dice import DiceCELoss, DiceLoss, DiceFocalLoss, one_hot
 from monai.losses.tversky import TverskyLoss
 from utils import LossLogger
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 #from tensorflow.keras.losses import BinaryCrossentropy
 
 class ConvTranspose2dConsistent(nn.Module):
@@ -49,6 +50,7 @@ class Models(nn.Module):
         Y = torch.argmax(softmax, dim=1)
         T_one_hot = one_hot(T[:, None, ...], num_classes=self.output_classes)
         logging.debug(f"logits:{logits.shape}, softmax output:{softmax.shape}, T_one_hot:{T_one_hot.shape}")
+        logging.debug(f"Y:{Y.shape}")
 
         logging.debug(f"T:{T_one_hot.shape}")
         loss = self.criterion(softmax, T_one_hot)
@@ -92,6 +94,8 @@ class Models(nn.Module):
 
         self.loss_logger = LossLogger()
         self.optim = optim
+        
+        self.device = train_params['device']
 
         self.criterion = criterion
 
@@ -104,11 +108,9 @@ class Models(nn.Module):
             # save checkpoints
         
         latest_checkpoint_path = train_params['checkpoints_dir']
-        latest_checkpoint_file = os.path.join(train_params['checkpoints_dir'], "model_latest.pt")
+        latest_checkpoint_file = os.path.join(train_params['checkpoints_dir'], "model_190.pt")
         device = train_params['device']
         save_every = train_params['save_every']
-
-        self.device = device
 
         if not os.path.exists(latest_checkpoint_file):
 
@@ -164,6 +166,22 @@ class Models(nn.Module):
                             self.loss_logger.record_batch_loss(
                                 loss_dict[loss_comp].detach().cpu().numpy(), loss_comp)
 
+                        # Export some sample validation outputs during training
+                        n_val_export = 5
+                        if b < n_val_export:
+                            images_to_export = [batch['x'][0].detach().cpu().numpy().astype(np.float32), 
+                                pred[0].detach().cpu().numpy().astype(np.float32), 
+                                batch['t'][0].detach().cpu().numpy().astype(np.int32)] # input, pred, target
+
+                            image_name = ['input', 'pred_vessels', 'true_vessels']
+
+                            for img_i, _ in enumerate(images_to_export):
+                                output_file_path = train_params["checkpoints_dir"] + \
+                                "/epoch_" + str(epoch) + "batch_" + str(b) + "_" + \
+                                image_name[img_i] + ".jpeg"
+
+                                plt.imsave(output_file_path, np.squeeze(images_to_export[img_i]), cmap=plt.cm.gray)
+
                         # save model i/o snapshots
 
                         '''for i in range(batch["index"].shape[0]):
@@ -211,6 +229,72 @@ class Models(nn.Module):
                     print(
                     f"{comp}: {mean_component_loss[comp]} |", end="")
                 print()
+
+    def deploy_model(self, exp_options, test_dataloader, save_preds = False):
+ 
+        logging.critical("Deploying model")
+        patches_per_patient = 1
+        latest_checkpoint_path = exp_options["checkpoints_dir"]
+        save_perc = 0.10
+
+        latest_checkpoint_file = os.path.join(exp_options["checkpoints_dir"], "model_180.pt")
+
+        # load model weights from checkpoint
+        if not os.path.exists(latest_checkpoint_file):
+            logging.error(f'No checkpoint found to evaluate in {latest_checkpoint_file}!')
+        else:  # resume experiment
+            print(f"{latest_checkpoint_file} trained model found, deploying")
+            mloc = torch.device(exp_options['device'])
+            self.load_state_dict(torch.load(latest_checkpoint_file, map_location=mloc))
+
+        super().eval().to(exp_options["device"])
+        
+        n_val_export = int(len(test_dataloader) * save_perc)
+        model_outputs = {"preds":[], "loss":[]}
+
+        # Do inference on dataset, saving predictions
+        for b, batch in tqdm(enumerate(test_dataloader)):
+            with torch.no_grad():
+                #logging.critical(f"Input:{batch['x'].shape}")
+                pred, loss, pred_soft, loss_dict = self._forward(batch, self.criterion)
+                i_types = [np.float32, np.float32, np.int32]
+        
+                if b < n_val_export:
+                    images_to_export = [batch['x'][0], pred[0], batch['t'][0]] # input, pred, target
+                    images_to_export = [images_to_export[i].detach().cpu().numpy().astype(i_types[i]) for i, _ in enumerate(images_to_export)]
+                    image_name = ['input', 'pred_vessels', 'true_vessels']
+
+                    for img_i, _ in enumerate(images_to_export):
+                        output_file_path = exp_options["deploy_dir"] + \
+                        "/epoch_deploy_batch_" + str(b) + "_" + \
+                        image_name[img_i] + ".jpeg"
+
+                        plt.imsave(output_file_path, np.squeeze(images_to_export[img_i]), cmap=plt.cm.gray)
+
+                model_outputs['preds'].append(pred)
+                model_outputs['preds'].append(pred)
+        
+        return model_outputs
+
+    def inference(dataloader):
+        
+        n_val_export = 5
+
+        for b, batch in enumerate(tqdm(dataloader, f"Epoch {epoch}, validating...")):
+            with torch.no_grad():
+                pred, loss, pred_soft, loss_dict = self._forward(batch, self.criterion)
+        
+                if b < n_val_export:
+                    images_to_export = [batch['x'][0], pred[0], batch['t'][0]] # input, pred, target
+                    images_to_export = [x.detach().cpu().numpy().astype(np.float32) for x in images_to_export]
+                    image_name = ['input', 'pred_vessels', 'true_vessels']
+
+                    for img_i, _ in enumerate(images_to_export):
+                        output_file_path = train_params["checkpoints_dir"] + \
+                        "/epoch_" + str(epoch) + "batch_" + str(b) + "_" + \
+                        image_name[img_i] + ".jpeg"
+
+                        plt.imsave(output_file_path, np.squeeze(images_to_export[img_i]), cmap=plt.cm.gray)
 
 class DownBlock(nn.Module):
 

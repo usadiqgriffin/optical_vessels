@@ -12,13 +12,16 @@ import os
 from GLOBALS import *
 
 
+
 if __name__ == "__main__":
     # Initializing data
 
     # Arguments and logger
     parser = argparse.ArgumentParser()
     parser.add_argument("--dryrun", action="store_true", default=False)
-    logging.basicConfig(level=logging.CRITICAL)
+    parser.add_argument('--step', default='train')
+
+    logging.basicConfig(level=logging.INFO)
     
     # Data params
     internal_shape = [1, 512, 512] # C, W, H
@@ -44,5 +47,14 @@ if __name__ == "__main__":
     #model.define_model()
     #model.initialize_weights(global_step=0)
 
-    experiment = Experiment(model, data, "output")
-    experiment.train()
+    if args.step == "train" or args.step == "a2z":
+        experiment = Experiment(model, data, "output")
+        experiment.train()
+
+    elif args.step == "deploy" or args.step == "a2z":
+
+        experiment = Experiment(model, data, "output")
+        experiment.eval() 
+
+        print("\n")
+        logging.critical(f"Deployment finished, results saved in {experiment.deploy_params['deploy_dir']}")

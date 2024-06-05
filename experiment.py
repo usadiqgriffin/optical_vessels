@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from collections import namedtuple
 from GLOBALS import *
 import torch
+from pathlib import Path
 
 class Experiment(object):
 
@@ -27,28 +28,31 @@ class Experiment(object):
         internal_shape = self.model.internal_shape
         #internal_pixdim = self.model.internal_pixdim
 
-        train_batches =  int(np.ceil(len(self.data.train_set) / batch_size))
-        val_batches = int(np.ceil(len(self.data.val_set) / batch_size))
+        train_batches =  int(np.ceil(len(self.data.data['train']) / batch_size))
+        val_batches = int(np.ceil(len(self.data.data['val']) / batch_size))
 
         print('\n**************************************')
-        print('len(self.data.train_set) =', len(self.data.train_set))
+        print('len(self.data.train_set) =', len(self.data.data['train']))
         print('train_batches =', train_batches)
-        print('len(self.data.val_set) =', len(self.data.val_set))
+        print('len(self.data.val_set) =', len(self.data.data['val']))
         print('val_batches =', val_batches)
         print('**************************************\n')
 
         # Possibly move these to experiment setup?
-        train_options = {"max_epochs": 30,
+        train_options = {"max_epochs": 200,
             "checkpoints_dir": CHECKPOINT_DIR,
             "internal_shape": internal_shape,
             "save_every": 10,
             "device": 'cuda:0' if torch.cuda.is_available() else "cpu",
-            "batch_size" : 3,
+            "batch_size" : 30,
             "loss": "DiceCELoss",
             "lr": 1e-3
             }
         self.train_params = train_options
+        Path(train_options["checkpoints_dir"]).mkdir(parents=True, exist_ok=True)
 
+        # Create training and validation dataloaders
+        self.data.mode = "train"
         train_dl = torch.utils.data.DataLoader(
             dataset=self.data,
             batch_size=train_options['batch_size'],
@@ -57,6 +61,7 @@ class Experiment(object):
             drop_last=True
         )
 
+        self.data.mode = "val"
         val_dl = torch.utils.data.DataLoader(
             dataset=self.data,
             batch_size=1,
@@ -66,53 +71,36 @@ class Experiment(object):
         )
 
         self.model.setup(train_params=train_options)
-
         self.model.train_model(train_dataloader=train_dl, 
             val_dataloader=val_dl,
             train_params=train_options)
 
-    def eval(self, load_mode):
-        
-        if load_mode == 1:
-            # Forcing the model to run on the validation set only
-            datasets = [[], self.data.val_set, []]
-        else:
-            # Running the model on all the train/val/test set, depending on what is loaded to memory (i.e. load_mode)
-            datasets = [self.data.train_set, self.data.val_set, self.data.test_set]
+    def eval(self):
 
-        model_outputs = []  # will contain everything needed to run the test and generate the report
-        loss0_arr = []
+        internal_shape = self.model.internal_shape
+        deploy_options = {"checkpoints_dir": CHECKPOINT_DIR,
+            "deploy_dir": EXPERIMENT_DEPLOY_DIR,
+            "internal_shape": internal_shape,
+            "save_every": 10,
+            "device": 'cuda:0' if torch.cuda.is_available() else "cpu",
+            "batch_size" : 1,
+            "loss": "DiceCELoss",
+            "lr": 1e-3
+            }
+        self.deploy_params = deploy_options
+        Path(deploy_options["checkpoints_dir"]).mkdir(parents=True, exist_ok=True)
+        Path(deploy_options["deploy_dir"]).mkdir(parents=True, exist_ok=True)
 
-        for dataset in datasets:
-
-            for i in range(len(dataset)):
-
-                print(i, '/', len(dataset))
-
-                # Validating the validation set
-                image = np.expand_dims(dataset[i][0], 0)
-                vessel_mask = np.expand_dims(dataset[i][1], 0)
-                row = ''
-                #pred_vessel_internal = dataset[i][3]
-
-
-                trans_mat = np.expand_dims(np.zeros(shape=(3, 4)), 0)
-
-                image_trans, vessel_mask_trans, pred_vessels, loss0 = self.model.sess.run(
-                    [self.model.image_trans,
-                     self.model.vessel_mask_trans,
-                     self.model.pred_vessels,
-                     self.model.loss0],
-                    feed_dict={
-                        self.model.image: image,
-                        self.model.vessel_mask: vessel_mask,
-                        self.model.trans_mat: trans_mat,
-                        self.model.training: 0})
-
-                model_outputs.append([image_trans,
-                                      vessel_mask_trans,
-                                      pred_vessels,
-                                      row])
-                loss0_arr.append(loss0)
+        # Setup model and dataset
+        self.model.setup(train_params=deploy_options)
+        self.data.mode = "test"
+        test_dl = torch.utils.data.DataLoader(
+            dataset=self.data,
+            batch_size=1,
+            shuffle=False,
+            num_workers=0,
+            drop_last=False
+        )
+        model_outputs = self.model.deploy_model(exp_options=deploy_options, test_dataloader=test_dl)
         
         return model_outputs

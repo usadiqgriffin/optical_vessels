@@ -35,9 +35,8 @@ class OpticalDataloader(torch.utils.data.Dataset):
     def __init__(self, train_paths_list, val_paths_list, test_paths_list=[]):
 
         # Initializing the datasets
-        self.train_set = []
-        self.val_set = []
-        self.test_set = []
+        self.data = {}
+        self.mode = ""
 
         self.load_data(train_paths_list, val_paths_list, test_paths_list)
 
@@ -48,8 +47,13 @@ class OpticalDataloader(torch.utils.data.Dataset):
         recalc = False
         # Loading the appropriate data to memory
         # counter = 0
+        train_set = []
+        val_set = []
+        test_set = []
+
+
         for i in range(len(datasets)):
-            for j in tqdm(range(len(datasets[i]))):
+            for j in range(len(datasets[i])):
 
                 image_path = datasets[i][j]
                 mask_path = image_path.replace(".jpeg", "_mask.jpeg")
@@ -70,24 +74,29 @@ class OpticalDataloader(torch.utils.data.Dataset):
                 example = [image_np, vessel_mask_np]
 
                 if i == 0:
-                    self.train_set.append(example)
+                    train_set.append(example)
                 elif i == 1:
-                    self.val_set.append(example)
+                    val_set.append(example)
                 elif i == 2:
-                    self.test_set.append(example)
+                    test_set.append(example)
+
+        self.data['train'] = train_set
+        self.data['val'] = val_set
+        self.data['test'] = test_set
 
         print()
         print('**************************************')
-        print('len(self.train_set) =', len(self.train_set))
+        print('len(train_set) =', len(train_set))
         print(f"image shape ={image_np.shape}, mask shape:{vessel_mask_np.shape}")
-        print('len(self.val_set) =', len(self.val_set))
-        print('len(self.test_set) =', len(self.test_set))
+        print('len(val_set) =', len(val_set))
+        print('len(test_set) =', len(test_set))
         print('Done Loading')
         print('**************************************')
     
     def __getitem__(self, index):
 
-        x, t = self.train_set[index]
+
+        x, t = self.data[self.mode][index]
 
         item = {}
         item["x"]= torch.unsqueeze(torch.Tensor(x), 0)
@@ -95,7 +104,7 @@ class OpticalDataloader(torch.utils.data.Dataset):
         return item
         
     def __len__(self):
-        return len(self.train_set)
+        return len(self.data[self.mode])
 
 
 
