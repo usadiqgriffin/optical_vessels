@@ -39,7 +39,6 @@ class Models(nn.Module):
         X = batch['x'].to(self.device)
         T = batch['t'].to(self.device)  # not one-hot
 
-        logging.debug(f"Model input shape:{X.shape}, target shape:{T.shape}")
         logits = self(X.float())  # one-hot, logits
         
         #print(f"Final output shape:{logits.shape}")
@@ -49,13 +48,11 @@ class Models(nn.Module):
         
         Y = torch.argmax(softmax, dim=1)
         T_one_hot = one_hot(T[:, None, ...], num_classes=self.output_classes)
-        logging.debug(f"logits:{logits.shape}, softmax output:{softmax.shape}, T_one_hot:{T_one_hot.shape}")
-        logging.debug(f"Y:{Y.shape}")
+        #logging.debug(f"logits:{logits.shape}, softmax output:{softmax.shape}, T_one_hot:{T_one_hot.shape}")
 
-        logging.debug(f"T:{T_one_hot.shape}")
+
         loss = self.criterion(softmax, T_one_hot)
         #loss, loss_dict = self.criterion(softmax, T_one_hot)
-        logging.debug(f"Loss:{loss}")
         if batch["t"].isnan().any() or Y.isnan().any() or loss.isnan().any():
            logging.error("NaNs found in output or target or loss") 
 
@@ -167,7 +164,10 @@ class Models(nn.Module):
                                 loss_dict[loss_comp].detach().cpu().numpy(), loss_comp)
 
                         # Export some sample validation outputs during training
-                        n_val_export = 5
+                        n_val_export = 20
+                        val_export_path = os.path.join(train_params["checkpoints_dir"], "valid")
+                        Path(val_export_path).mkdir(parents=True, exist_ok=True)
+
                         if b < n_val_export:
                             images_to_export = [batch['x'][0].detach().cpu().numpy().astype(np.float32), 
                                 pred[0].detach().cpu().numpy().astype(np.float32), 
@@ -176,7 +176,7 @@ class Models(nn.Module):
                             image_name = ['input', 'pred_vessels', 'true_vessels']
 
                             for img_i, _ in enumerate(images_to_export):
-                                output_file_path = train_params["checkpoints_dir"] + \
+                                output_file_path = val_export_path + \
                                 "/epoch_" + str(epoch) + "batch_" + str(b) + "_" + \
                                 image_name[img_i] + ".jpeg"
 
@@ -237,7 +237,7 @@ class Models(nn.Module):
         latest_checkpoint_path = exp_options["checkpoints_dir"]
         save_perc = 0.10
 
-        latest_checkpoint_file = os.path.join(exp_options["checkpoints_dir"], "model_180.pt")
+        latest_checkpoint_file = os.path.join(exp_options["checkpoints_dir"], "model_latest.pt")
 
         # load model weights from checkpoint
         if not os.path.exists(latest_checkpoint_file):
@@ -338,9 +338,7 @@ class UpBlock(nn.Module):
 
         x_up = self.up_convtranspose(x_up)
         x_up = self._crop(x_up, x_skip.shape)
-        logging.debug(f"x_up:{x_up.shape}, x_skip:{x_skip.shape}")
         x_up = torch.concat([x_skip, x_up], dim=1)
-        logging.debug(f"x concat:{x_up.shape}")
         x_up = self.up_crb(x_up)
 
         return x_up
@@ -404,13 +402,13 @@ class UNet2D(Models):
 
         x_skip = []
         for i in range(self.depth):
-            logging.debug(f"Down {i}: {x.shape}-->")
+            #logging.debug(f"Down {i}: {x.shape}-->")
             x = self.downblocks[i](x)
             x_skip.append(x)
 
 
         for i in range(self.depth-2, -1, -1):
-            logging.debug(f"Up {i}: x:{x.shape}, skip:{x_skip[i].shape}-->")
+            #logging.debug(f"Up {i}: x:{x.shape}, skip:{x_skip[i].shape}-->")
             x = self.upblocks[i](x_skip=x_skip[i], x_up=x)
 
         x = self.outconv(x)

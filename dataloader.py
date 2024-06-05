@@ -5,6 +5,8 @@ from tqdm import tqdm
 import os
 import logging
 import torch
+from torchvision import transforms as T
+from torchvision.transforms import v2
 
 def zscore_norm(image):
     mean_val = np.mean(image)
@@ -32,25 +34,22 @@ def vessel_mask_ridge(img_np, filter_name = "sato"):
     return mask
 
 class OpticalDataloader(torch.utils.data.Dataset):
-    def __init__(self, train_paths_list, val_paths_list, test_paths_list=[]):
+    def __init__(self, paths_list, mode = "train"):
 
         # Initializing the datasets
-        self.data = {}
-        self.mode = ""
+        self.data_list = []
+        self.mode = mode
 
-        self.load_data(train_paths_list, val_paths_list, test_paths_list)
+        self.load_data(paths_list)
 
-    def load_data(self, train_paths_list, val_paths_list, test_paths_list=[]):
+    def load_data(self, paths_list):
         
-        internal_shape = [512, 512]
-        datasets = [train_paths_list, val_paths_list, test_paths_list]
+        self.internal_shape = [512, 512]
+        datasets = [paths_list]
         recalc = False
         # Loading the appropriate data to memory
         # counter = 0
         train_set = []
-        val_set = []
-        test_set = []
-
 
         for i in range(len(datasets)):
             for j in range(len(datasets[i])):
@@ -73,58 +72,95 @@ class OpticalDataloader(torch.utils.data.Dataset):
                 #assert vessel_mask_np.shape == internal_shape
                 example = [image_np, vessel_mask_np]
 
-                if i == 0:
-                    train_set.append(example)
-                elif i == 1:
-                    val_set.append(example)
-                elif i == 2:
-                    test_set.append(example)
+                train_set.append(example)
 
-        self.data['train'] = train_set
-        self.data['val'] = val_set
-        self.data['test'] = test_set
+        self.data_list = train_set
 
         print()
         print('**************************************')
         print('len(train_set) =', len(train_set))
-        print(f"image shape ={image_np.shape}, mask shape:{vessel_mask_np.shape}")
-        print('len(val_set) =', len(val_set))
-        print('len(test_set) =', len(test_set))
         print('Done Loading')
         print('**************************************')
     
-    def augment(image, mask):
+
+    def augment_2D(self, image, flip_x, flip_y, angle, interp): 
+        
+        angle_xy = angle[0]
+        image = image.cuda()
+        
+        # Random horizontal flipping
+        if self.flip_y and flip_y > 0.5:
+            image = TF.hflip(image)
+
+        # Random vertical flipping
+        if self.flip_x and flip_x > 0.5:
+            image = TF.vflip(image)
+        
+        image = TF.rotate(image, angle_xy, interpolation=interp)
+
+        return image
+
+    def tv_augment_3D(self, image, mask):
+
+        C, D, W, H = image.shape
+    
+        # Random affine
+        max_angle_xy = 30
+        angle_xy = random.random() * max_angle_xy - max_angle_xy / 2
+        
+        flip_x = random.random()
+        flip_y = random.random()
+
+        image = self.augment_2D(image.squeeze(), flip_x=flip_x, flip_y=flip_y, angle=(angle_xy), interp=TF.InterpolationMode.BILINEAR)
+        mask =  self.augment_2D(mask.squeeze(), flip_x=flip_x, flip_y=flip_y, angle=(angle_xy), interp=TF.InterpolationMode.NEAREST)
+
+        aug_dict = {}
+        aug_dict['flip_x']=flip_x
+        aug_dict['flip_y']=flip_y
+        aug_dict['angle_xy']=angle_xy
+        aug_dict['angle_yz']=angle_yz
+
+        return image, mask, aug_dict
+
+    def augment(self, image, mask):
+
+        logging.debug(f"Augmenting ..")
 
         mask = torch.unsqueeze(mask, 0)
         # Define the transformation
-        transform = T.Compose([
-            T.Resize((224, 224)),
-            T.RandomAffine(degrees=10, translate=(0.01, 0.01), scale=(0.99, 1.01)),
-            T.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.2, hue=0.01),
+        '''transform = T.Compose([
             T.RandomHorizontalFlip(p=0.5),
             T.RandomRotation(degrees=15),
             T.RandomVerticalFlip(p=0.5),
             T.GaussianBlur(kernel_size=3),  # You can adjust kernel size as needed
             T.RandomResizedCrop(size=(224, 224), scale=(0.99, 1.0), ratio=(0.75, 1.333)),
-            T.RandomAdjustSharpness(sharpness_factor=2),
-            T.RandomAutocontrast(),
             T.ToTensor(),
             T.RandomErasing(p=0.2, scale=(0.05, 0.05), ratio=(0.5, 0.5)),
-        ])
+        ])'''
         
+        transforms = v2.Compose([
+            v2.RandomHorizontalFlip(p=0.5),
+            v2.RandomVerticalFlip(p=0.5),
+            v2.RandomRotation(degrees=30),
+            ]
+        )
         
-        augmented_image = transform(image).permute(1, 2, 0)
-        augmented_mask = transform(mask).permute(1, 2, 0)
+        images = torch.vstack([image, mask])
+        images = transforms(images)
+
+        augmented_image, augmented_mask = images[0, :, :], images[1, :, :]
+        #augmented_mask = transforms(mask)
 
         return augmented_image, torch.squeeze(augmented_mask)
 
     def __getitem__(self, index):
 
-        x, t = self.data[self.mode][index]
-
+        x, t = self.data_list[index]
         item = {}
         x = torch.unsqueeze(torch.Tensor(x), 0)
         t = torch.Tensor(t)
+
+        logging.debug(f"\n \nDATA MODE: {self.mode}")
 
         if self.mode == "train":
             x, t = self.augment(x, t)
@@ -135,7 +171,7 @@ class OpticalDataloader(torch.utils.data.Dataset):
         return item
         
     def __len__(self):
-        return len(self.data[self.mode])
+        return len(self.data_list)
 
 
 

@@ -21,7 +21,7 @@ if __name__ == "__main__":
     parser.add_argument("--dryrun", action="store_true", default=False)
     parser.add_argument('--step', default='train')
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.ERROR)
     
     # Data params
     internal_shape = [1, 512, 512] # C, W, H
@@ -39,21 +39,28 @@ if __name__ == "__main__":
     logging.info(f"{len(dev_paths_list)} Training images found")
 
     train_paths_list, val_paths_list = dev_paths_list[:n_train], dev_paths_list[n_train:]
-    data = OpticalDataloader(train_paths_list, val_paths_list, test_paths_list)
-    
+    train_data = OpticalDataloader(train_paths_list, mode="train")
+    val_data = OpticalDataloader(val_paths_list, mode="valid")
+    test_data = OpticalDataloader(test_paths_list, mode="test")
+
+
     # Initializing experiment
 
-    model = UNet2D(internal_shape, output_classes=2, depth=8, width=2)
+    model = UNet2D(internal_shape, output_classes=2, depth=7, width=2)
     #model.define_model()
     #model.initialize_weights(global_step=0)
 
     if args.step == "train" or args.step == "a2z":
-        experiment = Experiment(model, data, "output")
+        experiment = Experiment(model=model, 
+            output_path="output", 
+            dataset_list=[train_data, val_data],
+            modes_list=["train", "valid"])
+
         experiment.train()
 
     elif args.step == "deploy" or args.step == "a2z":
 
-        experiment = Experiment(model, data, "output")
+        experiment = Experiment(model, "output", [test_data], ["test"])
         experiment.eval() 
 
         print("\n")
