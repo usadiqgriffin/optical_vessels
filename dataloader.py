@@ -126,7 +126,8 @@ class OpticalDataloader(torch.utils.data.Dataset):
 
         logging.debug(f"Augmenting ..")
 
-        mask = torch.unsqueeze(mask, 0)
+        image = image.cuda()
+        mask = torch.unsqueeze(mask.cuda(), 0)
         # Define the transformation
         '''transform = T.Compose([
             T.RandomHorizontalFlip(p=0.5),
@@ -154,7 +155,7 @@ class OpticalDataloader(torch.utils.data.Dataset):
         augmented_image, augmented_mask = images[0, :, :], images[1, :, :]
         #augmented_mask = transforms(mask)
 
-        return augmented_image, torch.squeeze(augmented_mask)
+        return torch.unsqueeze(augmented_image, 0), augmented_mask
 
     def __getitem__(self, index):
 
@@ -167,6 +168,9 @@ class OpticalDataloader(torch.utils.data.Dataset):
 
         if self.mode == "train":
             x, t = self.augment(x, t)
+            #logging.critical(f"X:{x.shape}")
+            assert len(x.shape) == 3
+            assert len(t.shape) == 2
         
         item['x'] = x
         item['t'] = t

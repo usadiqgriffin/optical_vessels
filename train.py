@@ -28,17 +28,25 @@ if __name__ == "__main__":
     data_dir = "data/diabetic-retinopathy-dataset/resized"
 
     args = parser.parse_args()
-    n_dev = 20 if args.dryrun else 500
-    n_test = 10 if args.dryrun else 200
+    n_dev = 20 if args.dryrun else 700
+    n_test = 10 if args.dryrun else 300
     n_train = int(n_dev * 0.7)
+    n_valid = int(n_dev * 0.3)
+
     dev_paths_list = glob(data_dir + "/train/*t.jpeg")[:n_dev]
     test_paths_list = glob(data_dir + "/test/*t.jpeg")[:n_test]
     random.Random(4).shuffle(dev_paths_list)
     random.Random(4).shuffle(test_paths_list)
 
-    logging.info(f"{len(dev_paths_list)} Training images found")
+    df_train = pd.read_csv("data/train.csv")
+    df_valid = pd.read_csv("data/valid.csv")
+    df_test = pd.read_csv("data/test.csv")
 
-    train_paths_list, val_paths_list = dev_paths_list[:n_train], dev_paths_list[n_train:]
+    train_paths_list = df_train['image_path'].tolist()[:n_train]
+    val_paths_list = df_valid['image_path'].tolist()[:n_valid]
+    test_paths_list = df_test['image_path'].tolist()[:n_test]
+    logging.info(f"{len(train_paths_list)} Training images found")
+
     train_data = OpticalDataloader(train_paths_list, mode="train")
     val_data = OpticalDataloader(val_paths_list, mode="valid")
     test_data = OpticalDataloader(test_paths_list, mode="test")
@@ -60,7 +68,7 @@ if __name__ == "__main__":
 
     elif args.step == "deploy" or args.step == "a2z":
 
-        experiment = Experiment(model, "output", [test_data], ["test"])
+        experiment = Experiment(model, "output", [val_data, test_data], ["valid", "test"])
         experiment.eval() 
 
         print("\n")

@@ -257,7 +257,7 @@ class Models(nn.Module):
             with torch.no_grad():
                 #logging.critical(f"Input:{batch['x'].shape}")
                 pred, loss, pred_soft, loss_dict = self._forward(batch, self.criterion)
-                i_types = [np.float32, np.float32, np.int32]
+                i_types = [np.float32, np.int32, np.int32]
         
                 if b < n_val_export:
                     images_to_export = [batch['x'][0], pred[0], batch['t'][0]] # input, pred, target
