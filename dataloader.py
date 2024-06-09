@@ -7,6 +7,7 @@ import logging
 import torch
 from torchvision import transforms as T
 from torchvision.transforms import v2
+import random
 
 def zscore_norm(image):
     mean_val = np.mean(image)
@@ -78,11 +79,10 @@ class OpticalDataloader(torch.utils.data.Dataset):
 
         print()
         print('**************************************')
-        print('len(train_set) =', len(train_set))
+        print('len(data set) =', len(train_set))
         print('Done Loading')
         print('**************************************')
     
-
     def augment_2D(self, image, flip_x, flip_y, angle, interp): 
         
         angle_xy = angle[0]
@@ -144,7 +144,7 @@ class OpticalDataloader(torch.utils.data.Dataset):
             v2.RandomVerticalFlip(p=0.5),
             v2.RandomRotation(degrees=30),
             v2.RandomErasing(p=0.2, ratio=(0.5, 0.5)),
-            v2.RandomResizedCrop(size=(512, 512), ratio=(0.75, 1.333)),
+            v2.RandomResizedCrop(size=(512, 512), scale=(0.99, 1.0), ratio=(0.75, 1.333)),
             #v2.RandomAffine(degrees=0, translate=[0.1, 0.1], shear=0)
             ]
         )
@@ -166,7 +166,8 @@ class OpticalDataloader(torch.utils.data.Dataset):
 
         logging.debug(f"\n \nDATA MODE: {self.mode}")
 
-        if self.mode == "train":
+        aug_fraction = 0.9
+        if self.mode == "train" and random.uniform(0, 1) < aug_fraction:
             x, t = self.augment(x, t)
             #logging.critical(f"X:{x.shape}")
             assert len(x.shape) == 3

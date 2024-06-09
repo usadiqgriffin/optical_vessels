@@ -10,6 +10,7 @@ from random import shuffle
 import logging
 import os
 from GLOBALS import *
+import pandas as pd
 
 
 
@@ -28,15 +29,15 @@ if __name__ == "__main__":
     data_dir = "data/diabetic-retinopathy-dataset/resized"
 
     args = parser.parse_args()
-    n_dev = 20 if args.dryrun else 700
-    n_test = 10 if args.dryrun else 300
+    n_dev = 20 if args.dryrun else 500
+    n_test = 10 if args.dryrun else 200
     n_train = int(n_dev * 0.7)
     n_valid = int(n_dev * 0.3)
 
-    dev_paths_list = glob(data_dir + "/train/*t.jpeg")[:n_dev]
+    '''dev_paths_list = glob(data_dir + "/train/*t.jpeg")[:n_dev]
     test_paths_list = glob(data_dir + "/test/*t.jpeg")[:n_test]
     random.Random(4).shuffle(dev_paths_list)
-    random.Random(4).shuffle(test_paths_list)
+    random.Random(4).shuffle(test_paths_list)'''
 
     df_train = pd.read_csv("data/train.csv")
     df_valid = pd.read_csv("data/valid.csv")
