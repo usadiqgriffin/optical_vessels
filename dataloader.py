@@ -42,6 +42,7 @@ class OpticalDataloader(torch.utils.data.Dataset):
         self.mode = mode
 
         self.load_data(paths_list)
+        self.device = 'cuda:0' if torch.cuda.is_available() else "cpu"
 
     def load_data(self, paths_list):
         
@@ -126,8 +127,8 @@ class OpticalDataloader(torch.utils.data.Dataset):
 
         logging.debug(f"Augmenting ..")
 
-        image = image.cuda()
-        mask = torch.unsqueeze(mask.cuda(), 0)
+        #image = image.cuda()
+        mask = torch.unsqueeze(mask, 0)
         # Define the transformation
         '''transform = T.Compose([
             T.RandomHorizontalFlip(p=0.5),
@@ -161,8 +162,8 @@ class OpticalDataloader(torch.utils.data.Dataset):
 
         x, t = self.data_list[index]
         item = {}
-        x = torch.unsqueeze(torch.Tensor(x), 0)
-        t = torch.Tensor(t)
+        x = torch.unsqueeze(torch.Tensor(x), 0).to(self.device)
+        t = torch.Tensor(t).to(self.device)
 
         logging.debug(f"\n \nDATA MODE: {self.mode}")
 

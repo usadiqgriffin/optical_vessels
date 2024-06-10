@@ -235,7 +235,7 @@ class Models(nn.Module):
         logging.critical("Deploying model")
         patches_per_patient = 1
         latest_checkpoint_path = exp_options["checkpoints_dir"]
-        save_perc = 0.10
+        save_perc = 1.0
 
         latest_checkpoint_file = os.path.join(exp_options["checkpoints_dir"], "model_latest.pt")
 
