@@ -235,7 +235,7 @@ class Models(nn.Module):
         logging.critical("Deploying model")
         patches_per_patient = 1
         latest_checkpoint_path = exp_options["checkpoints_dir"]
-        save_perc = 1.0
+        save_perc = 0.4
 
         latest_checkpoint_file = os.path.join(exp_options["checkpoints_dir"], "model_latest.pt")
 
@@ -269,7 +269,19 @@ class Models(nn.Module):
                         "/epoch_deploy_batch_" + str(b) + "_" + \
                         image_name[img_i] + ".jpeg"
 
+                        comparison_file_path_prefix = exp_options["deploy_dir"] + \
+                        "/epoch_deploy_batch_" + str(b)
+
                         plt.imsave(output_file_path, np.squeeze(images_to_export[img_i]), cmap=plt.cm.gray)
+
+                    plt.imshow(images_to_export[0].squeeze(), cmap=plt.cm.gray)
+                    plt.imshow(images_to_export[1].squeeze(), cmap=plt.cm.hot, alpha=0.2)
+                    plt.imshow(images_to_export[2].squeeze(), cmap=plt.cm.gist_heat, alpha=0.2)
+                    plt.savefig(comparison_file_path_prefix + "image_pred_vs_true.jpg")
+
+                    #plt.imshow(images_to_export[0].squeeze(), cmap=plt.cm.gray)
+                    
+                    #plt.savefig(comparison_file_path_prefix + "image_overlay_true.jpg")
 
                 model_outputs['preds'].append(pred)
                 model_outputs['preds'].append(pred)
